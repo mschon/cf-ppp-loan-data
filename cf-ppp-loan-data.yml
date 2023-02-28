@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: The name of S3 bucket to be created to contain the loan data
+  GlueDBName:
+    Type: String
+    Description: The name of Glue database to be created (e.g. ppp-loans)
+  GlueDBTableName:
+    Type: String
+    Description: The name of Glue database table to be created (e.g. ppp-loans)
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3BucketName
+
+  GlueDatabase:
+    Type: 'AWS::Glue::Database'
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Ref GlueDBName
+
+  GlueTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: [ GlueDatabase, S3Bucket ]
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref GlueDBName
+      TableInput:
+        Name: !Ref GlueDBTableName
+        Description: PPP loans table
+        StorageDescriptor:
+          Columns:
+            - { Name: loannumber, Type: string }
+            - { Name: dateapproved, Type: string }
+            - { Name: sbaofficecode, Type: string }
+            - { Name: processingmethod, Type: string }
+            - { Name: borrowername, Type: string }
+            - { Name: borroweraddress, Type: string }
+            - { Name: borrowercity, Type: string }
+            - { Name: borrowerstate, Type: string }
+            - { Name: borrowerzip, Type: string }
+            - { Name: loanstatusdate, Type: string }
+            - { Name: loanstatus, Type: string }
+            - { Name: term, Type: string }
+            - { Name: sbaguarantypercentage, Type: string }
+            - { Name: initialapprovalamount, Type: string }
+            - { Name: currentapprovalamount, Type: string }
+            - { Name: undisbursedamount, Type: string }
+            - { Name: franchisename, Type: string }
+            - { Name: servicinglenderlocationid, Type: string }
+            - { Name: servicinglendername, Type: string }
+            - { Name: servicinglenderaddress, Type: string }
+            - { Name: servicinglendercity, Type: string }
+            - { Name: servicinglenderstate, Type: string }
+            - { Name: servicinglenderzip, Type: string }
+            - { Name: ruralurbanindicator, Type: string }
+            - { Name: hubzoneindicator, Type: string }
+            - { Name: lmiindicator, Type: string }
+            - { Name: businessagedescription, Type: string }
+            - { Name: projectcity, Type: string }
+            - { Name: projectcountyname, Type: string }
+            - { Name: projectstate, Type: string }
+            - { Name: projectzip, Type: string }
+            - { Name: cd, Type: string }
+            - { Name: jobsreported, Type: string }
+            - { Name: naicscode, Type: string }
+            - { Name: race, Type: string }
+            - { Name: ethnicity, Type: string }
+            - { Name: utilities_proceed, Type: string }
+            - { Name: payroll_proceed, Type: string }
+            - { Name: mortgage_interest_proceed, Type: string }
+            - { Name: rent_proceed, Type: string }
+            - { Name: refinance_eidl_proceed, Type: string }
+            - { Name: health_care_proceed, Type: string }
+            - { Name: debt_interest_proceed, Type: string }
+            - { Name: businesstype, Type: string }
+            - { Name: originatinglenderlocationid, Type: string }
+            - { Name: originatinglender, Type: string }
+            - { Name: originatinglendercity, Type: string }
+            - { Name: originatinglenderstate, Type: string }
+            - { Name: gender, Type: string }
+            - { Name: veteran, Type: string }
+            - { Name: nonprofit, Type: string }
+            - { Name: forgivenessamount, Type: string }
+            - { Name: forgivenessdate, Type: string }
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+            Parameters:
+              field.delim: ','
+          Location: !Sub 's3://${S3BucketName}/'
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          EXTERNAL: TRUE
+          transient_lastDdlTime: '0'
+
+  AthenaQuery:
+    Type: 'AWS::Athena::NamedQuery'
+    DependsOn: [ GlueTable, GlueDatabase ]
+    Properties:
+      Name: PPP-loans-ByCityAndState
+      Database: !Ref GlueDBName
+      QueryString: !Sub 'SELECT * FROM "${GlueDBName}"."${GlueDBTableName}" WHERE borrowercity LIKE ''Detroit'' AND borrowerstate = ''MI'';'
+      Description: Example query for PPP loans in Detroit, MI
+      WorkGroup: primary
